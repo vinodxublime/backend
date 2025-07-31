@@ -124,3 +124,4 @@ coverage/
 .deploy/
 dist/
 build/
+"config/firebaseServiceAccount.json" 
