@@ -54,6 +54,7 @@ const sendTokenResponse = (user, statusCode, res, message = 'Success') => {
 // @route   POST /api/auth/register
 // @access  Public
 const register = async (req, res, next) => {
+  console.log("Register Request Body:", req.body);
   try {
     const { name, email, mobile, password, language } = req.body;
 

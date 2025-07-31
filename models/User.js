@@ -22,9 +22,17 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Password is required'],
+    required: function () {
+      // Only require password if user is not using Firebase
+      return !this.firebaseUid;
+    },
     minlength: [8, 'Password must be at least 8 characters'],
     select: false
+  },
+  firebaseUid: {
+    type: String,
+    unique: true,
+    sparse: true // Allows many nulls
   },
   role: {
     type: String,

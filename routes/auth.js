@@ -17,11 +17,7 @@ const { validationRules, handleValidationErrors } = require('../middleware/valid
 const router = express.Router();
 
 // Public routes
-router.post('/register', 
-  validationRules.registerUser, 
-  handleValidationErrors, 
-  register
-);
+router.post('/register', validationRules.registerUser,handleValidationErrors,register);
 
 router.post('/login', 
   validationRules.loginUser, 
@@ -34,6 +30,15 @@ router.post('/verify-otp',
   handleValidationErrors, 
   verifyOTP
 );
+
+const verifyFirebaseToken = require('../middleware/verifyFirebaseToken');
+router.get('/google/profile', verifyFirebaseToken, async (req, res) => {
+  res.status(200).json({
+    message: 'Firebase token verified successfully!',
+    user: req.firebaseUser,
+  });
+});
+
 
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);

@@ -11,7 +11,12 @@ require('dotenv').config();
 const connectDB = require('./config/database');
 const logger = require('./config/logger');
 
+// Import middleware
+const errorHandler = require('./middleware/errorHandler');
+const notFound = require('./middleware/notFound');
+
 // Import routes
+const firebaseAuthRoutes = require('./routes/firebaseAuth');
 const authRoutes = require('./routes/auth');
 const languageRoutes = require('./routes/language');
 const homeRoutes = require('./routes/home');
@@ -28,59 +33,56 @@ const notificationRoutes = require('./routes/notifications');
 const analyticsRoutes = require('./routes/analytics');
 const adminRoutes = require('./routes/admin');
 
-// Import middleware
-const errorHandler = require('./middleware/errorHandler');
-const notFound = require('./middleware/notFound');
-
 const app = express();
 
-// Connect to MongoDB
+// ✅ Connect to MongoDB
 connectDB();
 
-// Security middleware
+// ✅ Security middleware
 app.use(helmet());
 
-// CORS configuration
+// ✅ CORS middleware (Only ONE block, and EARLY)
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['your-production-domain.com'] 
-    : ['http://localhost:3000', 'http://localhost:3001'],
-  credentials: true
+  origin: ['http://localhost:3000', 'http://localhost:3001'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+app.options('*', cors()); // 🔁 Handle preflight globally
 
-// Rate limiting
+// ✅ Body parser (BEFORE routes)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// ✅ Rate limiting
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP to 100 requests per windowMs
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
 });
 app.use('/api/', limiter);
 
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// File upload middleware
+// ✅ File uploads
 app.use(fileUpload({
-  limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024 }, // 10MB
+  limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024 },
   useTempFiles: true,
-  tempFileDir: './uploads/temp/'
+  tempFileDir: './uploads/temp/',
 }));
 
-// Compression middleware
+// ✅ Compression
 app.use(compression());
 
-// Logging middleware
+// ✅ Logging
 if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('combined', { stream: { write: message => logger.info(message.trim()) } }));
 }
 
-// Static files
+// ✅ Static files
 app.use('/uploads', express.static('uploads'));
 
-// Health check endpoint
+// ✅ Health check
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
@@ -91,7 +93,8 @@ app.get('/health', (req, res) => {
   });
 });
 
-// API Routes
+// ✅ ROUTES
+app.use('/api/firebase', firebaseAuthRoutes); // 🔁 Place Firebase early
 app.use('/api/auth', authRoutes);
 app.use('/api/languages', languageRoutes);
 app.use('/api/home', homeRoutes);
@@ -108,33 +111,27 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Error handling middleware
+// ✅ Error handling
 app.use(notFound);
 app.use(errorHandler);
 
+// ✅ Start Server
 const PORT = process.env.PORT || 3000;
-
 const server = app.listen(PORT, () => {
   logger.info(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📚 API Documentation: http://localhost:${PORT}/api/docs`);
 });
 
-// Graceful shutdown
+// ✅ Graceful shutdown
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received. Shutting down gracefully...');
-  server.close(() => {
-    logger.info('Process terminated');
-    process.exit(0);
-  });
+  server.close(() => process.exit(0));
 });
 
 process.on('SIGINT', () => {
   logger.info('SIGINT received. Shutting down gracefully...');
-  server.close(() => {
-    logger.info('Process terminated');
-    process.exit(0);
-  });
+  server.close(() => process.exit(0));
 });
 
 module.exports = app;
